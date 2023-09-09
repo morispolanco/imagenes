@@ -1,26 +1,32 @@
+# Import required libraries
 import streamlit as st
 from PIL import Image
-import requests
+from torchvision.transforms import Compose, Resize, Normalize
+from torchvision.utils import make_grid
+from pytorch_pretrained_biggan import (BigGAN, one_hot_from_names, truncate_noise_sample)
+import torch
+from clip import clip
 
-st.title("Generador de Imágenes con Stable Diffusion")
+# Load the models
+model = BigGAN.from_pretrained('biggan-deep-512')
+clip_model, preprocess = clip.load("ViT-B/32", device="cpu")
 
-endpoint = "https://api.replicate.com/v1/predictions"
+def text_to_images(text: str):
+    text_inputs = clip.tokenize(text).to("cpu")
+    with torch.no_grad():
+        text_features = clip_model.encode_text(text_inputs).float()
+        text_features /= text_features.norm(dim=-1, keepdim=True)
+        # Generate an image
+        noise_vector = torch.randn(1, model.z_dim).to("cpu")
+        class_vector = one_hot_from_names(['random'], batch_size=1)
+        noise_vector = truncate_noise_sample(noise_vector, truncation=0.4)
+        output = model(noise_vector, class_vector, truncation)
+    return output
 
-text = st.text_input("Ingrese el texto para generar la imagen:")
-
-if text:
-
-    data = {
-        "version": "v1",
-        "input": {
-            "prompt": text,
-            "num_images": 1,
-            "size": "512x512",
-            "response_format": "url"
-        }
-    }
-
-    response = requests.post(endpoint, json=data)
-    image_url = response.json()['output'][0]
-
-    st.image(image_url)
+# Streamlit interface
+st.title('Imagen Generator con CLIP and BigGAN')
+text = st.text_input("Texto de entrada", "Un sol brillando sobre un océano azul")
+if st.button('Generar'):
+    with st.spinner("Generando..."):
+        images = text_to_images(text)
+        st.image((images.clamp(-1, 1) + 1) / 2.0, use_column_width=True)
