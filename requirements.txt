@@ -1,6 +1,6 @@
 streamlit==1.2.0
 torch==1.9.1
-torchvision==0.10.1
+torchvision
 numpy==1.21.2
 Pillow==8.4.0
 clip @ git+https://github.com/openai/CLIP.git
